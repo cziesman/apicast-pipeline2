@@ -1,0 +1,35 @@
+apiVersion: apps.3scale.net/v1alpha1
+kind: APIcast
+metadata:
+  name: production-fixa
+  namespace: redes-3scale-apicast-dev
+spec:
+  logLevel: info
+  responseCodesIncluded: true
+  resources:
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  extendedMetrics: true
+  cacheConfigurationSeconds: 300
+  deploymentEnvironment: production
+  adminPortalCredentialsRef:
+    name: apicast-configuration-url-secret
+  timezone: America/Sao_Paulo
+  replicas: 1
+  configurationLoadMode: boot
+  enabledServices:
+    - '6'
+    - '10'
+    - '11'
+    - '12'
+    - '13'
+    - '14'
+    - '15'
+    - '20'
+    - '21'
+    - '23'
+    - '32'

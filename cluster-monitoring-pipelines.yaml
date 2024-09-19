@@ -1,0 +1,35 @@
+# This ApplicationSet will create the following 'cluster-monitoring' pipelines:
+#
+#  ocp-01-cluster-monitoring
+#  ocp-dr-cluster-monitoring
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-monitoring
+spec:
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - cluster: ocp-01
+                - cluster: ocp-dr
+  template:
+    metadata:
+      name: '{{cluster}}-cluster-monitoring'
+    spec:
+      project: default
+      source:
+        repoURL: https://oauth2:glpat-W_kgBVnsE-Yq_VFpGLTx@gitlab.apps.mgmt.tdigital-vivo.com.br/3scale-gitops/apicast-pipeline.git
+        targetRevision: HEAD
+        path: 'deployments/cluster-monitoring/{{cluster}}'
+      destination:
+        server: https://api.{{cluster}}.tdigital-vivo.com.br:6443
+        namespace: telefonica-gitops-dev
+#      syncPolicy:
+#        automated:
+#          prune: true
+#          selfHeal: true
+#      syncOptions:
+#        - ApplyOutOfSyncOnly=true

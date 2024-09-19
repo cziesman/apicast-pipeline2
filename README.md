@@ -1,0 +1,183 @@
+# Self-managed APIcast deployment and monitoring using ArgoCD
+
+This repository contains the configuration necessary to deploy self-managed APIcast instances using ArgoCD pipelines, and to set up monitoring of 3scale and APIcast resources using Grafana and ArgoCD pipelines. 
+
+**Note that configuration of Grafana to work with self-managed APIcast instances is not currently supported by Red Hat.**
+
+The ArgoCD resources are managed using the MGMT cluster, which is available at https://console-openshift-console.apps.mgmt.tdigital-vivo.com.br. This procedure assumes that the Red Hat OpenShift GitOps is available in both the `telefonica-gitops` and `telefonica-gitops-dev` namespaces. There are two separate instances of ArgoCD available. 
+
+| Instance | URL |
+| -------- | --- |
+| Argo-CD-DEV | https://telefonica-gitops-dev-server-telefonica-gitops-dev.apps.mgmt.tdigital-vivo.com.br |
+| Argo-CD-PROD | https://telefonica-gitops-server-telefonica-gitops.apps.mgmt.tdigital-vivo.com.br |
+
+There are four different instances of the 3scale API server available.
+
+| Instance        | URL                                                              |
+|-----------------| --- |
+| 3scale-CTP PROD | https://redes-admin.apps.ocp-01.tdigital-vivo.com.br/p/login     |
+| 3scale-DR PROD  | https://redes-admin.apps.ocp-dr.tdigital-vivo.com.br/p/login     |
+| 3scale-CTP DEV  | https://redes-admin.dev.apps.ocp-01.tdigital-vivo.com.br/p/login |
+| 3scale-DR DEV   | https://redes-admin.dev.apps.ocp-dr.tdigital-vivo.com.br/p/login |
+
+
+## Enable ArgoCD access to the DEV namespaces
+
+1. Login to the desired cluster. 
+2. Execute the following from the command line on both `OCP-01` and `OCP-DR`.
+```
+oc patch namespace redes-3scale-apicast-dev -p '{"metadata":{"labels":{"argocd.argoproj.io/managed-by":"argocd"}}}'
+oc patch namespace telefonica-3scale-amp-dev -p '{"metadata":{"labels":{"argocd.argoproj.io/managed-by":"argocd"}}}'
+```
+
+## Enable ArgoCD access to the PROD namespaces
+
+This needs to be executed from the command line on both `OCP-01` and `OCP-DR`.
+```
+oc patch namespace redes-3scale-apicast -p '{"metadata":{"labels":{"argocd.argoproj.io/managed-by":"argocd"}}}'
+oc patch namespace telefonica-3scale-amp -p '{"metadata":{"labels":{"argocd.argoproj.io/managed-by":"argocd"}}}'
+```
+
+## Enable ArgoCD access to the monitoring namespaces
+
+This needs to be executed from the command line on both `OCP-01` and `OCP-DR`.
+```
+oc patch namespace openshift-monitoring -p '{"metadata":{"labels":{"argocd.argoproj.io/managed-by":"argocd"}}}'
+```
+Note: The `openshift-monitoring` namespace does not have a DEV and a PROD version, so it only needs to be patched once in each cluster.
+
+## Create the secret for APIcast configuration
+
+Repeat these steps on both `OCP-01` and `OCP-DR`.
+
+### Generate the secret
+
+1. Using the 3scale admin web interface, create an access token with _Read & Write_ permissions under _Account Settings_ ==> Personal ==> _Tokens_. Make sure to check all four categories for _Scopes_. Copy the value of the newly created token. For this example, we will assume the value is `7ae6d59bdf549b3f407216ea8eb42a90c28a3c1d851e11c8f30436291b7beda4`.
+
+2. Create the YAML for the APIcast configuration secret using the Openshift CLI. The value for `THREESCALE_URL` comes from the route that corresponds to the `system-provider` service in the `3scale` namespace.
+```
+export TOKEN=7ae6d59bdf549b3f407216ea8eb42a90c28a3c1d851e11c8f30436291b7beda4
+export THREESCALE_URL=3scale-admin.apps.cluster-fjzmv.fjzmv.sandbox380.opentlc.com
+oc create secret generic apicast-configuration-url-secret --dry-run=client --from-literal=AdminPortalURL=https://${TOKEN}@${THREESCALE_URL} --type=Opaque -n redes-3scale-apicast-dev -o yaml
+```
+The output should resemble the following:
+```
+apiVersion: v1
+data:
+  AdminPortalURL: aHR0cHM6Ly8xMmRkYjZhNTI4ZTc4MDIxMTAxMWJlOWRjODNhYmQxNzkzODQyMTFjZTg2MzRhYzcxODA1N2JiMGJhYzMzODU3QDNzY2FsZS1hZG1pbi5hcHBzLmNsdXN0ZXItZmp6bXYuZmp6bXYuc2FuZGJveDM4MC5vcGVudGxjLmNvbQ==
+kind: Secret
+metadata:
+  creationTimestamp: null
+  name: apicast-configuration-url-secret
+  namespace: 3scale-apicast
+type: Opaque
+```
+### Update the secret in git
+
+1. Save the output in the file `deployments/secrets/<cluster>/dev/apicast-configuration-url-secret.yaml` in your git repository and commit the changes.
+
+### Run the _secrets_ pipeline
+
+1. Use the Red Hat OpenShift GitOps operator to create a new `ApplicationSet`, using the contents of the file `dev-secrets-pipelines.yaml`.
+2. The pipelines `ocp-01-dev-secrets` and `ocp-dr-dev-secrets` will be created in ArgoCD.
+3. Sync the new pipelines.
+
+The secret `apicast-configuration-url-secret` will be created in the `redes-3scale-apicast-dev` namespace.
+
+## fixo APIcasts
+
+### Run the _fixo apicast_ pipeline
+
+1. Use the Red Hat OpenShift GitOps operator to create a new `ApplicationSet`, using the contents of the file `dev-apicasts-fixo-pipelines.yaml`.
+2. The pipelines `ocp-01-dev-apicast-fixo` and `ocp-dr-dev-apicast-fixo` will be created in ArgoCD.
+3. Sync the new pipelines.
+
+The APIcast instances `staging-fixo` and `production-fixo` will be created by the APICast operator in the `redes-3scale-apicast-dev` namespace.
+
+The routes `apicast-staging-fixo` and `apicast-production-fixo` will be created in the `redes-3scale-apicast-dev` namespace.
+
+`PodMonitor`s will be created for the APIcast instances `staging-fixo` and `production-fixo` in the `redes-3scale-apicast-dev` namespace.
+
+
+## movel APIcasts
+
+### Run the _movel apicast_ pipeline
+
+1. Use the Red Hat OpenShift GitOps operator to create a new `ApplicationSet`, using the contents of the file `dev-apicasts-movel-pipelines.yaml`.
+2. The pipelines `ocp-01-dev-apicast-movel` and `ocp-dr-dev-apicast-movel` will be created in ArgoCD.
+3. Sync the new pipelines.
+
+The APIcast instances `staging-movel` and `production-movel` will be created by the APICast operator in the `redes-3scale-apicast-dev` namespace.
+
+The routes `apicast-staging-fixo` and `apicast-production-fixo` will be created in the `redes-3scale-apicast-dev` namespace.
+
+`PodMonitor`s will be created for the APIcast instances `staging-fixo` and `production-fixo` in the `redes-3scale-apicast-dev` namespace.
+
+## Grafana Monitoring
+
+### Run the _monitoring_ pipeline
+
+1. Use the Red Hat OpenShift GitOps operator to create a new `ApplicationSet`, using the contents of the file `dev-monitoring-pipelines.yaml`.
+2. The pipelines `ocp-01-dev-monitoring` and `ocp-dr-dev-monitoring` will be created in ArgoCD.
+3. Sync the new pipelines.
+
+the Grafana operator will create `Grafana` instances in both the `telefonica-3scale-amp-dev` and `redes-3scale-apicast-dev` namespaces. This is performed in this pipeline because the `grafana-serviceaccount` Service Account needs to exist prior to performing the manual steps specified in the next section.
+
+## Grafana
+
+Repeat these steps on both `OCP-01` and `OCP-DR`.
+
+### Configure the _GrafanaDataSource_
+
+1. Add the `cluster-monitoring-view` role to the `grafana-serviceaccount` service account:
+```
+oc adm policy add-cluster-role-to-user cluster-monitoring-view -z grafana-serviceaccount
+```
+
+2. Get an access token with a lifetime of one year (or the desired life span) for the `grafana-serviceaccount` service account in the `telefonica-3scale-amp-dev` namespace and in the `redes-3scale-apicast-dev` namespace:
+```
+oc create token --duration=525600m grafana-serviceaccount -n telefonica-3scale-amp-dev
+
+eyJhbGciOiJSUzI1NiIsImtpZCI6Im92UlY5S2pTOFRIMDBBMVBfTVFpTjlBNDR6aW1qRFdYbFRVRkhfemRaSWMifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjIl0sImV4cCI6MTc1NTIwNTYyNCwiaWF0IjoxNzIzNjY5NjI0LCJpc3MiOiJodHRwczovL2t1YmVybmV0ZXMuZGVmYXVsdC5zdmMiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6IjNzY2FsZSIsInNlcnZpY2VhY2NvdW50Ijp7Im5hbWUiOiJncmFmYW5hLXNlcnZpY2VhY2NvdW50IiwidWlkIjoiOWY1MmJiNjItZTY5My00YjI4LWI3MTEtZmJjZTc3YzU4NTgxIn19LCJuYmYiOjE3MjM2Njk2MjQsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDozc2NhbGU6Z3JhZmFuYS1zZXJ2aWNlYWNjb3VudCJ9.P0AdTDSAyYs7DFdLs1zwefyxVu1kLyjF1T52hUty8AqcpZQutpzJH3K7q5HVyUdQIGEmlVd4Xjw_g4z_8GM1F8lAoN3zHy-rwz9ZDG0TJszFtVDMKCvt1W0Ix7VvDYLO4_IfYxKriZ5-IrWTVFjl04deffKftAyvBtXTcaPo3-8lcsZh-R1anDvJ27wshclxlgbpjODYnbki42IV92NeSHl7aCfCIvwTYM0rVDUL07iNu5tqS2D775KgKNEKX32jOQOR-VUX2bWx6AKvy2Fql5jAsXHKXxYRKJRzmyvtN4erAlDvIMa4xTRqhnCicBRjHa0Aq1GWI8v4X9muRF607YAU5bpv86f7OWmvB58l2tB_T0zrZPqRj_CVr_U8rRekRGeH6RCQNSjLzmeJtCTVNOW_uVG56LA01sVPxmwXsJm2jrgGqPoOgzmMfXDRfx7SHCzZ34VPEqzS8jl6-ZZPQrupnaooJH7bSGXvmn3c9SDHMJEpTUKo444WhplEn2yBH_cKY0n7M9jK2Jh-bBSIsImchL3s6QrW_Cz__KrhaisO0v1dLegahCKXU7M2T_3JRGPYEmKz6eBmvPLecW_Rvu8LCj7Ebow1aB7KTZhmznRS2Td29DuC2Lux6TI65o1DLKNXn80cbkiAdGQSUi085wi353NTERMTOMrL6YA-tf8
+
+
+oc create token --duration=525600m grafana-serviceaccount -n redes-3scale-apicast-dev
+
+eyJhbGciOiJSUzI1NiIsImtpZCI6Im92UlY5S2pTOFRIMDBBMVBfTVFpTjlBNDR6aW1qRFdYbFRVRkhfemRaSWMifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjIl0sImV4cCI6MTc1NTIwNTYyNCwiaWF0IjoxNzIzNjY5NjI0LCJpc3MiOiJodHRwczovL2t1YmVybmV0ZXMuZGVmYXVsdC5zdmMiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6IjNzY2FsZS1hcGljYXN0Iiwic2VydmljZWFjY291bnQiOnsibmFtZSI6ImdyYWZhbmEtc2VydmljZWFjY291bnQiLCJ1aWQiOiJkZjVkNGM0Mi1hYWVkLTQ1MGQtYWFjNC05NTU0NGE5ODU0OTQifX0sIm5iZiI6MTcyMzY2OTYyNCwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OjNzY2FsZS1hcGljYXN0OmdyYWZhbmEtc2VydmljZWFjY291bnQifQ.kSzM2-tNtV6TK8P84zZ5JBMvlHMUSh-43hV2bvoj0lKOgh93kGfenxrf9K51gD7ZwpVlm1ce8QaDfmjQ4NcbHl0xD-S5xBFKFZ6RRdy5JbZWbF-BvK5yx52iOPBl9sx-4KjJTy-38K1crTLnjc-V9adyr_3NdXdvXpBqRt0xjiU56H0Beyu2MjpvVoZaQ-1k9YgQCWsBdZf9W3I5eBfABH8HIFLW7PAvPaUAAzwQigHYWXGyqFDpYU-6Bi1lTSqNB-1FBNgHa_PrLINsA-uD8S5wqGBQIjAxsr7Q-n2GFe7JNt7Yq7yKok22PLZEyMJD_XPgSGcAF3T266cfDFr6zxu5vvKunytRM3dAbhL-md-uNGocqj8vx0QXMH27hMdhV_wPzIYLHpPHqJXSQlMGKU6lSVM3gZzWXMhYBq7ebDKvcLHotwbx9cK2-2zkQeKBnoP8fkrpjPlZsNmRTgaVMi09fb_BF9iljMReMocF5w3MPzw5ROLIC_e4xiwVQhq9GDu_VWqIsXJ0s4ieGlVjbb4QQu0vtHL36dja5uhkpryEZq2mGWD8J4is4O14ohTTQ4TQ9eQrr3uPiOcBcW7f54LApXOTYRUxycQmdGzBNecyA3T04aXORAphBhT3D03PKdZ_p5UNAXhIAjvEK-E2jzlY1SQ6v594YjlpOMQLt9c
+```
+
+3. Retrieve the `thanos-querier` route:
+```
+oc get route -n openshift-monitoring
+
+NAME                      HOST/PORT                                                                                      PATH        SERVICES            PORT   TERMINATION          WILDCARD
+alertmanager-main         alertmanager-main-openshift-monitoring.apps.cluster-fjzmv.fjzmv.sandbox380.opentlc.com         /api        alertmanager-main   web    reencrypt/Redirect   None
+prometheus-k8s            prometheus-k8s-openshift-monitoring.apps.cluster-fjzmv.fjzmv.sandbox380.opentlc.com            /api        prometheus-k8s      web    reencrypt/Redirect   None
+prometheus-k8s-federate   prometheus-k8s-federate-openshift-monitoring.apps.cluster-fjzmv.fjzmv.sandbox380.opentlc.com   /federate   prometheus-k8s      web    reencrypt/Redirect   None
+thanos-querier            thanos-querier-openshift-monitoring.apps.cluster-fjzmv.fjzmv.sandbox380.opentlc.com            /api        thanos-querier      web    reencrypt/Redirect   None
+```
+
+### Update the _GrafanaDataSource_ in git
+
+1. Update the file `deployments/grafana/<cluster>/dev/010-grafana-datasource-3scale.yaml` and the file `deployments/grafana/<cluster>/dev/011-grafana-datasource-3scale-apicast.yaml` using the respective values for the tokens and the `thanos-querier` route. 
+2. Make sure to commit the changes to git.
+
+### Run the _grafana_ pipeline
+
+1. Use the Red Hat OpenShift GitOps operator to create a new `ApplicationSet`, using the contents of the file `grafana-pipeline.yaml`.
+2. The pipelines `ocp-01-dev-grafana` and `ocp-dr-dev-grafana` will be created in ArgoCD.
+3. Sync the new pipelines.
+
+## View the Grafana dashboards
+
+### 3scale
+In the `telefonica-3scale-amp-dev` namespace, the Grafana Operator will have created routes at `https://grafana-route-telefonica-3scale-amp-dev.apps.ocp-01.tdigital-vivo.com.br/` and `https://grafana-route-telefonica-3scale-amp-dev.apps.ocp-dr.tdigital-vivo.com.br/`. 
+
+There are seven `3scale` dashboards. Two of these are for the internal `APIcast` instances, and can be ignored since this setup is for self-managed `APIcast`. Three dashboards provide metrics for the `Zync`, `System`, and `Backend` components of `3scale`. The remaining two dashboards are duplicates of standard Kubernetes dashboards, with configuration specifically for `3scale`.
+
+### APIcast
+
+In the `redes-3scale-apicast-dev` namespaces, the Grafana Operator will have created routes at `https://grafana-route-redes-3scale-apicast-dev.apps.ocp-01.tdigital-vivo.com.br/` and `https://grafana-route-redes-3scale-apicast-dev.apps.ocp-dr.tdigital-vivo.com.br/`. 
+
+
+There are two `APIcast` dashboards -- `Apicast Main` amd `Apicast Services`.

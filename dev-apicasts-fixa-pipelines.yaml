@@ -1,0 +1,39 @@
+# This ApplicationSet will create the following 'apicast-fixa' pipelines:
+#
+#  ocp-01-dev-apicast-fixa
+#  ocp-dr-dev-apicast-fixa
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apicast-fixa
+spec:
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - environment: dev
+                  suffix: '-dev'
+          - list:
+              elements:
+                - cluster: ocp-01
+                - cluster: ocp-dr
+  template:
+    metadata:
+      name: '{{cluster}}-{{environment}}-apicast-fixa'
+    spec:
+      project: default
+      source:
+        repoURL: https://oauth2:glpat-W_kgBVnsE-Yq_VFpGLTx@gitlab.apps.mgmt.tdigital-vivo.com.br/3scale-gitops/apicast-pipeline.git
+        targetRevision: HEAD
+        path: 'deployments/apicasts/fixa/{{cluster}}/{{environment}}'
+      destination:
+        server: https://api.{{cluster}}.tdigital-vivo.com.br:6443
+        namespace: telefonica-gitops{{suffix}}
+#      syncPolicy:
+#        automated:
+#          prune: true
+#          selfHeal: true
+#      syncOptions:
+#        - ApplyOutOfSyncOnly=true

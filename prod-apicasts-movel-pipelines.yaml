@@ -1,0 +1,39 @@
+# This ApplicationSet will create the following 'apicast-movel' pipelines:
+#
+#  ocp-01-prod-apicast-movel
+#  ocp-dr-prod-apicast-movel
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apicast-movel
+spec:
+  generators:
+    - matrix:
+        generators:
+          - list:
+              elements:
+                - environment: prod
+                  suffix: ''
+          - list:
+              elements:
+                - cluster: ocp-01
+                - cluster: ocp-dr
+  template:
+    metadata:
+      name: '{{cluster}}-{{environment}}-apicast-movel'
+    spec:
+      project: default
+      source:
+        repoURL: https://oauth2:glpat-W_kgBVnsE-Yq_VFpGLTx@gitlab.apps.mgmt.tdigital-vivo.com.br/3scale-gitops/apicast-pipeline.git
+        targetRevision: HEAD
+        path: 'deployments/apicasts/movel/{{cluster}}/{{environment}}'
+      destination:
+        server: https://api.{{cluster}}.tdigital-vivo.com.br:6443
+        namespace: telefonica-gitops{{suffix}}
+#      syncPolicy:
+#        automated:
+#          prune: true
+#          selfHeal: true
+#      syncOptions:
+#        - ApplyOutOfSyncOnly=true

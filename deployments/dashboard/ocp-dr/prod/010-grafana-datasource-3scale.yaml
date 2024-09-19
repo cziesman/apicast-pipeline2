@@ -1,0 +1,23 @@
+apiVersion: integreatly.org/v1alpha1
+kind: GrafanaDataSource
+metadata:
+  name: prometheus-grafanadatasource
+  namespace: telefonica-3scale-amp
+spec:
+  datasources:
+    - access: proxy
+      editable: true
+      isDefault: true
+      jsonData:
+        httpHeaderName1: Authorization
+        timeInterval: 5s
+        tlsSkipVerify: true
+      name: Prometheus
+      secureJsonData:
+        httpHeaderValue1: >-
+          Bearer
+          eyJhbGciOiJSUzI1NiIsImtpZCI6Im92UlY5S2pTOFRIMDBBMVBfTVFpTjlBNDR6aW1qRFdYbFRVRkhfemRaSWMifQ.eyJhdWQiOlsiaHR0cHM6Ly9rdWJlcm5ldGVzLmRlZmF1bHQuc3ZjIl0sImV4cCI6MTc1NTIwNTYyNCwiaWF0IjoxNzIzNjY5NjI0LCJpc3MiOiJodHRwczovL2t1YmVybmV0ZXMuZGVmYXVsdC5zdmMiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6IjNzY2FsZSIsInNlcnZpY2VhY2NvdW50Ijp7Im5hbWUiOiJncmFmYW5hLXNlcnZpY2VhY2NvdW50IiwidWlkIjoiOWY1MmJiNjItZTY5My00YjI4LWI3MTEtZmJjZTc3YzU4NTgxIn19LCJuYmYiOjE3MjM2Njk2MjQsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDozc2NhbGU6Z3JhZmFuYS1zZXJ2aWNlYWNjb3VudCJ9.P0AdTDSAyYs7DFdLs1zwefyxVu1kLyjF1T52hUty8AqcpZQutpzJH3K7q5HVyUdQIGEmlVd4Xjw_g4z_8GM1F8lAoN3zHy-rwz9ZDG0TJszFtVDMKCvt1W0Ix7VvDYLO4_IfYxKriZ5-IrWTVFjl04deffKftAyvBtXTcaPo3-8lcsZh-R1anDvJ27wshclxlgbpjODYnbki42IV92NeSHl7aCfCIvwTYM0rVDUL07iNu5tqS2D775KgKNEKX32jOQOR-VUX2bWx6AKvy2Fql5jAsXHKXxYRKJRzmyvtN4erAlDvIMa4xTRqhnCicBRjHa0Aq1GWI8v4X9muRF607YAU5bpv86f7OWmvB58l2tB_T0zrZPqRj_CVr_U8rRekRGeH6RCQNSjLzmeJtCTVNOW_uVG56LA01sVPxmwXsJm2jrgGqPoOgzmMfXDRfx7SHCzZ34VPEqzS8jl6-ZZPQrupnaooJH7bSGXvmn3c9SDHMJEpTUKo444WhplEn2yBH_cKY0n7M9jK2Jh-bBSIsImchL3s6QrW_Cz__KrhaisO0v1dLegahCKXU7M2T_3JRGPYEmKz6eBmvPLecW_Rvu8LCj7Ebow1aB7KTZhmznRS2Td29DuC2Lux6TI65o1DLKNXn80cbkiAdGQSUi085wi353NTERMTOMrL6YA-tf8
+      type: prometheus
+      url: >-
+        https://thanos-querier-openshift-monitoring.apps.cluster-fjzmv.fjzmv.sandbox380.opentlc.com
+  name: prometheus-grafanadatasource.yaml

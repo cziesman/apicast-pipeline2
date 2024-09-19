@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: apicast-staging-movel
+  namespace: redes-3scale-apicast
+  labels:
+    app: 3scale-api-management
+spec:
+  namespaceSelector: {}
+  podMetricsEndpoints:
+    - bearerTokenSecret:
+        key: ""
+      path: /metrics
+      port: metrics
+      scheme: http
+  selector:
+    matchLabels:
+      deployment: apicast-staging-movel

@@ -1,0 +1,21 @@
+kind: Route
+apiVersion: route.openshift.io/v1
+metadata:
+  name: iat-service-oam-prd
+  namespace: redes-3scale-apicast-dev
+  labels:
+    app: apicast
+    threescale_component: apicast
+spec:
+  host: iat-service-oam-redes-apicast-production.apigtw.tdigital-vivo.com.br
+  to:
+    kind: Service
+    name: apicast-production-fixa
+    weight: 100
+  port:
+    targetPort: proxy
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+\
