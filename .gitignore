@@ -1,0 +1,15 @@
+*.swp
+*.pdfmarks
+*.pdf
+*.html
+*.iml
+*.docx
+*.docbook
+.idea/
+.vscode/
+.gradle/
+.projectile
+.DS_Store
+Icon*
+*~
+._*
